@@ -1,18 +1,40 @@
-const { invoke } = window.__TAURI__.core;
+/*
+ * Copyright (c) 2013-2025 Vanessa Freudenberg
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 
-let greetInputEl;
-let greetMsgEl;
 
-async function greet() {
-  // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-  greetMsgEl.textContent = await invoke("greet", { name: greetInputEl.value });
-}
-
-window.addEventListener("DOMContentLoaded", () => {
-  greetInputEl = document.querySelector("#greet-input");
-  greetMsgEl = document.querySelector("#greet-msg");
-  document.querySelector("#greet-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    greet();
-  });
-});
+window.onload = function() {
+    // we use ./etoys.image rather than Etoys/etoys.image which has a few
+    // preferences set to make it work better with SqueakJS
+    var url = "etoys.image";
+    SqueakJS.runSqueak(url, sqCanvas, {
+        appName: "Etoys",
+        fixedWidth: 1200,
+        fixedHeight: 900,
+        spinner: sqSpinner,
+        root: "/Etoys",
+        templates: { "/Etoys": "Etoys" },
+        onStart: function(vm, display, options) {
+            // debugger
+            // vm.breakOn("Latin1Environment class>>systemConverterClass");
+        },
+    });
+};
