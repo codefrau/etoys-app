@@ -28,3 +28,19 @@ This has only been tested on macOS so far. Please report back if you try it on o
 * implement native file access via Tauri
 * test on all platforms
 * publish app
+
+# SqueakJS
+
+This repo contains a copy of SqueakJS via `git subtree` (see e.g. [here](https://www.atlassian.com/git/tutorials/git-subtree)). The following commands are a cheat-sheet:
+
+    git remote add -f codefrau-squeakjs https://github.com/codefrau/SqueakJS.git
+    git subtree add --prefix src/squeakjs codefrau-squeakjs main --squash
+
+Pull:
+
+    git fetch codefrau-squeakjs main
+    git subtree pull --prefix src/squeakjs codefrau-squeakjs main --squash
+
+Push:
+
+    git subtree push --prefix=src/squeakjs/ codefrau-squeakjs main
