@@ -20,12 +20,16 @@
  * THE SOFTWARE.
  */
 
+import "./squeakjs/squeak.js";
+
+const sqCanvas = document.getElementById("sqCanvas");
+const sqSpinner = document.getElementById("sqSpinner");
 
 window.onload = function() {
+    Squeak.debugFiles = true;
     // we use ./etoys.image rather than Etoys/etoys.image which has a few
     // preferences set to make it work better with SqueakJS
-    var url = "etoys.image";
-    SqueakJS.runSqueak(url, sqCanvas, {
+    SqueakJS.runSqueak("etoys.image", sqCanvas, {
         appName: "Etoys",
         fixedWidth: 1200,
         fixedHeight: 900,

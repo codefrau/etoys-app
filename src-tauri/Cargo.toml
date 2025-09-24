@@ -1,7 +1,7 @@
 [package]
-name = "Etoys"
+name = "etoys-app"
 version = "0.1.0"
-description = "Authoring Environment for Children of All Ages"
+description = "Etoys on SqueakJS packaged with Tauri"
 authors = ["Vanessa Freudenberg"]
 edition = "2021"
 
