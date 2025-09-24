@@ -26,6 +26,9 @@ This has only been tested on macOS so far. Please report back if you try it on o
 ## To Do
 
 * implement native file access via Tauri
+    - [x] load image from disk
+    - [ ] file primitives
+    - [ ] directory primitives
 * test on all platforms
 * publish app
 

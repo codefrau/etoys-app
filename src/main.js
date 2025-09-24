@@ -20,25 +20,32 @@
  * THE SOFTWARE.
  */
 
-import "./squeakjs/squeak.js";
+import "./squeakjs/squeak_tauri.js";
 
 const sqCanvas = document.getElementById("sqCanvas");
 const sqSpinner = document.getElementById("sqSpinner");
 
-window.onload = function() {
+async function run() {
     Squeak.debugFiles = true;
-    // we use ./etoys.image rather than Etoys/etoys.image which has a few
-    // preferences set to make it work better with SqueakJS
-    SqueakJS.runSqueak("etoys.image", sqCanvas, {
+
+    // on macOS this is in ~/Library/Application Support/<app-id>/
+    const appDataDir = await __TAURI__.path.appDataDir()
+
+    // on macOS this is the .app bundle's Resources directory
+    const resourceDir = await __TAURI__.path.resourceDir()
+    const imagePath = await  __TAURI__.path.join(resourceDir, "Etoys", "etoys.image");
+
+    SqueakJS.runSqueak(imagePath, sqCanvas, {
         appName: "Etoys",
         fixedWidth: 1200,
         fixedHeight: 900,
         spinner: sqSpinner,
-        root: "/Etoys",
-        templates: { "/Etoys": "Etoys" },
+        root: appDataDir,
         onStart: function(vm, display, options) {
             // debugger
             // vm.breakOn("Latin1Environment class>>systemConverterClass");
         },
     });
 };
+
+window.onload = run;
