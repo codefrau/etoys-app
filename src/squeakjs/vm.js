@@ -37,6 +37,9 @@ Object.extend(Squeak,
     windowSystem: "unknown",            // Replaced at runtime
     defaultCORSProxy: "https://cors.codefrau.workers.dev/",
 },
+"misc runtime", {
+    untrustedUserDirectory: "/SqueakJS", // modified e.g. by tauri
+},
 "object header", {
     // object headers
     HeaderTypeMask: 3,

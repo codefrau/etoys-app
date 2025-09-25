@@ -34,7 +34,7 @@ Object.extend(Squeak.Primitives.prototype,
             HostWindowPlugin:       this.findPluginFunctions("hostWindow_"),
             SecurityPlugin: {
                 primitiveDisableImageWrite: this.fakePrimitive.bind(this, "SecurityPlugin.primitiveDisableImageWrite", 0),
-                primitiveGetUntrustedUserDirectory: this.fakePrimitive.bind(this, "SecurityPlugin.primitiveGetUntrustedUserDirectory", "/SqueakJS"),
+                primitiveGetUntrustedUserDirectory: this.fakePrimitive.bind(this, "SecurityPlugin.primitiveGetUntrustedUserDirectory", Squeak.untrustedUserDirectory),
             },
             LocalePlugin: {
                 primitiveTimezoneOffset: this.fakePrimitive.bind(this, "LocalePlugin.primitiveTimezoneOffset", 0),
