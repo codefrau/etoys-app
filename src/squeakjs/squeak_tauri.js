@@ -1247,7 +1247,7 @@ SqueakJS.runSqueak = async function(imageUrl, canvas, options={}) {
         if (!image.name) return alert("could not find an image");
         if (!image.data) return alert("could not find image " + image.name);
         SqueakJS.appName = options.appName || image.name.replace(/(.*\/|\.image$)/g, "");
-        SqueakJS.runImage(image.data, options.root + image.name, display, options);
+        SqueakJS.runImage(image.data, image.url, display, options);
     }, function error() {
         alert("Failed to load image: " + image.url);
     });
