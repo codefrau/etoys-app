@@ -28,19 +28,20 @@ const sqSpinner = document.getElementById("sqSpinner");
 async function run() {
     Squeak.debugFiles = true;
 
-    // on macOS this is in ~/Library/Application Support/<app-id>/
-    const appDataDir = await __TAURI__.path.appDataDir()
+    const documentDir = await __TAURI__.path.documentDir();
+    const etoysDir = await __TAURI__.path.join(documentDir, "Etoys");
+    Squeak.untrustedUserDirectory = etoysDir;     // FileDirectory default in Etoys
 
     // on macOS this is the .app bundle's Resources directory
-    const resourceDir = await __TAURI__.path.resourceDir()
-    const imagePath = await  __TAURI__.path.join(resourceDir, "Etoys", "etoys.image");
+    const resourceDir = await __TAURI__.path.resourceDir();
+    const imagePath = await __TAURI__.path.join(resourceDir, "Etoys", "etoys.image");
 
     SqueakJS.runSqueak(imagePath, sqCanvas, {
         appName: "Etoys",
         fixedWidth: 1200,
         fixedHeight: 900,
         spinner: sqSpinner,
-        root: appDataDir,
+        root: etoysDir,
         onStart: function(vm, display, options) {
             // debugger
             // vm.breakOn("Latin1Environment class>>systemConverterClass");
