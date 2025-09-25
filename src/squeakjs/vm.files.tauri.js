@@ -86,6 +86,16 @@ Object.extend(Squeak,
             if (Squeak.debugFiles) console.log("dirGet results", dirpath, results.length);
             thenDo(results);
         } catch (err) {
+            if (err.startsWith("forbidden") && Squeak.untrustedUserDirectory.startsWith(dirpath)) {
+                // fake entries from root to user directory
+                var name = Squeak.untrustedUserDirectory.slice(dirpath.length);
+                if (name[0] === '/') name = name.slice(1);
+                name = name.replace(/\/.*$/g, '');
+                var entry = [name, 0, 0, true, 0];
+                if (Squeak.debugFiles) console.log("dirGet fake entry", dirpath, name);
+                thenDo([entry]);
+                return;
+            }
             if (Squeak.debugFiles) console.log("dirGet error", dirpath, err);
             errorDo(err);
         }
