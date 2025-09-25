@@ -42,11 +42,6 @@ Object.extend(Squeak,
         }
         return {full: url, uptoslash: uptoslash, filename: filename};
     },
-    dirCreate: async function(dirpath, withParents) {
-        if (Squeak.debugFiles) console.log("dirCreate", dirpath, withParents);
-        await __TAURI__.fs.mkdir(dirpath, { recursive: withParents });
-        return true;
-    },
     fileGet: function(filepath, thenDo, errorDo) {
         if (!errorDo) errorDo = function(err) { console.log(err) };
         if (Squeak.debugFiles) console.log("fileGet", filepath);
@@ -57,5 +52,42 @@ Object.extend(Squeak,
             if (Squeak.debugFiles) console.log("fileGet error", filepath, err);
             errorDo(err);
         });
-    }
+    },
+},
+"dirs", {
+    dirCreate: async function(dirpath, withParents) {
+        if (Squeak.debugFiles) console.log("dirCreate", dirpath, withParents);
+        await __TAURI__.fs.mkdir(dirpath, { recursive: withParents });
+        return true;
+    },
+    dirGet: async function(dirpath, thenDo, errorDo) {
+        if (!errorDo) errorDo = function(err) { console.log(err) };
+        if (Squeak.debugFiles) console.log("dirGet", dirpath);
+        try {
+            var entries = await __TAURI__.fs.readDir(dirpath);
+            if (Squeak.debugFiles) console.log("dirGet ok", dirpath, entries.length);
+            var results = await Promise.all(entries.map(async entry => {
+                try {
+                    var fullPath = await __TAURI__.path.join(dirpath, entry.name);
+                    var stats = await __TAURI__.fs.stat(fullPath);
+                    return [
+                        entry.name,
+                        Math.floor((stats.birthtime - Squeak.Epoch) / 1000),
+                        Math.floor((stats.mtime - Squeak.Epoch) / 1000),
+                        entry.isDirectory,
+                        entry.isFile ? stats.size : 0,
+                    ];
+                } catch (err) {
+                    if (Squeak.debugFiles) console.log("dirGet stat error", entry.name, err);
+                    return null;
+                }
+            }));
+            results = results.filter(e => e).sort((a, b) => a[0].localeCompare(b[0]));
+            if (Squeak.debugFiles) console.log("dirGet results", dirpath, results.length);
+            thenDo(results);
+        } catch (err) {
+            if (Squeak.debugFiles) console.log("dirGet error", dirpath, err);
+            errorDo(err);
+        }
+    },
 });
