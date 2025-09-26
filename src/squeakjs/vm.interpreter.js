@@ -945,7 +945,9 @@ Object.subclass('Squeak.Interpreter',
         this.executeNewMethod(newRcvr, entry.method, entry.argCount, entry.primIndex, entry.mClass, selector);
     },
     sendAsPrimitiveFailure: function(rcvr, method, argCount) {
-        this.executeNewMethod(rcvr, method, argCount, 0);
+        // used by a primitive before unfreezing the VM to indicate failure:
+        // we skip the primitive and just execute the method normally
+        this.executeNewMethod(rcvr, method, argCount, 0); // primitiveIndex of 0 means skip primitive
     },
     /**
      * @param {*} trueArgCount The number of arguments for the method to be found
@@ -1033,6 +1035,8 @@ Object.subclass('Squeak.Interpreter',
         if (primitiveIndex > 0)
             if (this.tryPrimitive(primitiveIndex, argumentCount, newMethod))
                 return;  //Primitive succeeded -- end of story
+                // (that is, unless the prim did freeze() the VM, in which case we
+                // might get back here later via sendAsPrimitiveFailure)
         var newContext = this.allocateOrRecycleContext(newMethod.methodNeedsLargeFrame());
         var tempCount = newMethod.methodTempCount();
         var newPC = 0; // direct zero-based index into byte codes

@@ -440,6 +440,7 @@ Object.subclass('Squeak.Primitives',
         }
         var result = false;
         var sp = this.vm.sp;
+        var rcvr = this.vm.stackValue(argCount);
         if (mod) {
             this.interpreterProxy.argCount = argCount;
             this.interpreterProxy.primitiveName = functionName;
@@ -456,10 +457,25 @@ Object.subclass('Squeak.Primitives',
             if (this.success) this.vm.warnOnce("missing module: " + modName + " (" + functionName + ")");
             else this.vm.warnOnce("failed to load module: " + modName + " (" + functionName + ")");
         }
-        if ((result === true || (result !== false && this.success)) && this.vm.sp !== sp - argCount && !this.vm.frozen) {
+        if ((result === true || (result == null && this.success)) && this.vm.sp !== sp - argCount && !this.vm.frozen) {
             this.vm.warnOnce("stack unbalanced after primitive " + modName + "." + functionName, "error");
         }
         if (result === true || result === false) return result;
+        // if primitive returned a Promise, we freeze the VM until it resolves
+        if (result && typeof result.then === 'function') {
+            var method = this.primMethod;
+            var unfreeze = this.vm.freeze();
+            result.then(success => {
+                if (success === false) this.vm.sendAsPrimitiveFailure(rcvr, method, argCount);
+                else if (success !== true) throw Error("bad return value in async primitive");
+                unfreeze();
+            }).catch(err => {
+                this.vm.sendAsPrimitiveFailure(rcvr, method, argCount);
+                unfreeze();
+            });
+            return true; // exit executeNewMethod() for now. It might be re-entered
+            // later via sendAsPrimitiveFailure() when the Promise resolves
+        }
         return this.success;
     },
     doNamedPrimitive: function(argCount, primMethod) {
