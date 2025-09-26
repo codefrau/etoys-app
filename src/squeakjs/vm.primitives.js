@@ -457,6 +457,7 @@ Object.subclass('Squeak.Primitives',
             if (this.success) this.vm.warnOnce("missing module: " + modName + " (" + functionName + ")");
             else this.vm.warnOnce("failed to load module: " + modName + " (" + functionName + ")");
         }
+        // result can be true, false, undefined/null or a Promise (async) [maybe more?]
         if ((result === true || (result == null && this.success)) && this.vm.sp !== sp - argCount && !this.vm.frozen) {
             this.vm.warnOnce("stack unbalanced after primitive " + modName + "." + functionName, "error");
         }
@@ -470,6 +471,8 @@ Object.subclass('Squeak.Primitives',
                 else if (success !== true) throw Error("bad return value in async primitive");
                 unfreeze();
             }).catch(err => {
+                // the prim is supposed to catch its own errors and return false
+                console.warn("async primitive " + modName + "." + functionName + " threw:", err);
                 this.vm.sendAsPrimitiveFailure(rcvr, method, argCount);
                 unfreeze();
             });
