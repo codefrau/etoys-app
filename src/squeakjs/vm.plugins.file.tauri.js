@@ -66,7 +66,7 @@ Object.extend(Squeak.Primitives.prototype,
         this.popNandPushIfOK(argCount+1, this.makeStObject(entry));  // entry or nil
         return true;
     },
-    primitiveDirectoryLookup: function(argCount) {
+    primitiveDirectoryLookup: async function(argCount) {
         var index = this.stackInteger(0),
             dirNameObj = this.stackNonInteger(1);
         if (!this.success) return false;
@@ -74,11 +74,18 @@ Object.extend(Squeak.Primitives.prototype,
         var dirName = this.filenameFromSqueak(sqDirName);
         // if (Squeak.debugFiles) console.log("primitiveDirectoryLookup", dirName, index);
         var force = index === 1;
-        return this.dirContentsDo(dirName, force, function(entries) {
-            var entry = entries && entries[index - 1];
-            // if (Squeak.debugFiles) console.log("primitiveDirectoryLookup result", index, entry);
-            this.popNandPushIfOK(argCount+1, this.makeStObject(entry));  // entry or nil
-        }.bind(this));
+        // cache directory contents and get entry
+        if (!window.SqueakDirs) window.SqueakDirs = {};
+        var entries = SqueakDirs[dirName];
+        // if not cached or forced, fetch directory
+        if (!entries || force) {
+            entries = await Squeak.dirGet(dirName); // prim fails if this throws
+            SqueakDirs[dirName] = entries;
+        }
+        var entry = entries[index - 1]; // undefined if past end
+        // if (Squeak.debugFiles) console.log("primitiveDirectoryLookup result", index, entry);
+        this.popNandPushIfOK(argCount+1, this.makeStObject(entry));  // entry or nil
+        return true;
     },
     primitiveDirectorySetMacTypeAndCreator: function(argCount) {
         return this.popNIfOK(argCount);
@@ -358,28 +365,5 @@ Object.extend(Squeak.Primitives.prototype,
             console[logOrError](buffer);
             this.fileConsoleBuffer[logOrError] = '';
         }
-    },
-    dirContentsDo: function(dirName, force, func) {
-        if (!window.SqueakDirs) window.SqueakDirs = {};
-        var entries = SqueakDirs[dirName];
-        if (entries && !force) {
-            func(entries);
-        } else {
-            this.vm.freeze(function(unfreeze) {
-                var error = (function(msg) {
-                    console.warn("Dir read failed: " + msg);
-                    entries = undefined;
-                    unfreeze();
-                    func(entries);
-                }).bind(this),
-                success = (function(readEntries) {
-                    SqueakDirs[dirName] = entries = readEntries;
-                    unfreeze();
-                    func(entries);
-                }).bind(this);
-                Squeak.dirGet(dirName, success, error);
-            }.bind(this));
-        }
-        return true;
     },
 });

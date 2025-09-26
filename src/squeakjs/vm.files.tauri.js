@@ -60,12 +60,11 @@ Object.extend(Squeak,
         await __TAURI__.fs.mkdir(dirpath, { recursive: withParents });
         return true;
     },
-    dirGet: async function(dirpath, thenDo, errorDo) {
-        if (!errorDo) errorDo = function(err) { console.log(err) };
-        // if (Squeak.debugFiles) console.log("dirGet", dirpath);
+    dirGet: async function(dirpath) {
+        if (Squeak.debugFiles) console.log("dirGet", dirpath);
         try {
             var entries = await __TAURI__.fs.readDir(dirpath);
-            // if (Squeak.debugFiles) console.log("dirGet ok", dirpath, entries.length);
+            // if (Squeak.debugFiles) console.log("dirGet raw", dirpath, entries.length);
             var results = await Promise.all(entries.map(async entry => {
                 try {
                     var fullPath = await __TAURI__.path.join(dirpath, entry.name);
@@ -84,7 +83,7 @@ Object.extend(Squeak,
             }));
             results = results.filter(e => e).sort((a, b) => a[0].localeCompare(b[0]));
             // if (Squeak.debugFiles) console.log("dirGet results", dirpath, results.length);
-            thenDo(results);
+            return results;
         } catch (err) {
             if (err.startsWith("forbidden") && Squeak.untrustedUserDirectory.startsWith(dirpath)) {
                 // fake entries from root to user directory
@@ -92,12 +91,11 @@ Object.extend(Squeak,
                 if (name[0] === '/') name = name.slice(1);
                 name = name.replace(/\/.*$/g, '');
                 var entry = [name, 0, 0, true, 0];
-                // if (Squeak.debugFiles) console.log("dirGet fake entry", dirpath, name);
-                thenDo([entry]);
-                return;
+                if (Squeak.debugFiles) console.log("dirGet fake entry", dirpath, name);
+                return [entry];
             }
             if (Squeak.debugFiles) console.log("dirGet error", dirpath, err);
-            errorDo(err);
+            throw err;
         }
     },
 });
