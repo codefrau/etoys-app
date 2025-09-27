@@ -66,7 +66,7 @@ Object.extend(Squeak.Primitives.prototype,
         this.popNandPushIfOK(argCount+1, this.makeStObject(entry));  // entry or nil
         return true;
     },
-    primitiveDirectoryLookup: async function(argCount) {
+    primitiveDirectoryLookup: function(argCount) {
         var index = this.stackInteger(0),
             dirNameObj = this.stackNonInteger(1);
         if (!this.success) return false;
@@ -77,15 +77,27 @@ Object.extend(Squeak.Primitives.prototype,
         // cache directory contents and get entry
         if (!window.SqueakDirs) window.SqueakDirs = {};
         var entries = SqueakDirs[dirName];
-        // if not cached or forced, fetch directory
+        // if not cached or if forced, use async prim to fetch directory
         if (!entries || force) {
-            entries = await Squeak.dirGet(dirName); // prim fails if this throws
-            SqueakDirs[dirName] = entries;
+            return this.asyncDirectoryLookup(index, dirName, argCount);
         }
         var entry = entries[index - 1]; // undefined if past end
         // if (Squeak.debugFiles) console.log("primitiveDirectoryLookup result", index, entry);
         this.popNandPushIfOK(argCount+1, this.makeStObject(entry));  // entry or nil
         return true;
+    },
+    asyncDirectoryLookup: async function(index, dirName, argCount) {
+        try {
+            var entries = await Squeak.dirGet(dirName); // prim fails if this throws
+            SqueakDirs[dirName] = entries; // cache it
+            var entry = entries[index - 1]; // undefined if past end
+            // if (Squeak.debugFiles) console.log("primitiveDirectoryLookup result", index, entry);
+            this.popNandPushIfOK(argCount+1, this.makeStObject(entry));  // entry or nil
+            return true;
+        } catch (e) {
+            if (Squeak.debugFiles) console.warn("Error in primitiveDirectoryLookup:", e);
+            return false;
+        }
     },
     primitiveDirectorySetMacTypeAndCreator: function(argCount) {
         return this.popNIfOK(argCount);

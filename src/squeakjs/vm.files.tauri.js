@@ -94,7 +94,6 @@ Object.extend(Squeak,
                 if (Squeak.debugFiles) console.log("dirGet fake entry", dirpath, name);
                 return [entry];
             }
-            if (Squeak.debugFiles) console.log("dirGet error", dirpath, err);
             throw err;
         }
     },
