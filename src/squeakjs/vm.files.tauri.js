@@ -22,7 +22,7 @@
  */
 
 Object.extend(Squeak,
-"files", {
+"paths", {
     splitFilePath: function(filepath) {
         if (filepath[0] !== '/') filepath = '/' + filepath;
         filepath = filepath.replace(/\/\//g, '/');      // replace double-slashes
@@ -42,6 +42,8 @@ Object.extend(Squeak,
         }
         return {full: url, uptoslash: uptoslash, filename: filename};
     },
+},
+"files", {
     fileGet: function(filepath, thenDo, errorDo) {
         if (!errorDo) errorDo = function(err) { console.log(err) };
         if (Squeak.debugFiles) console.log("fileGet", filepath);
@@ -53,6 +55,23 @@ Object.extend(Squeak,
             errorDo(err);
         });
     },
+    flushFile: async function(file) {
+        if (file.modified) {
+            var array = file.contents;
+            if (array.length !== file.size) {
+                array = new Uint8Array(file.size);
+                array.set(file.contents.subarray(0, file.size));
+            }
+            // set modified to false before awaiting, to avoid race conditions
+            file.modified = false;
+            try {
+                await __TAURI__.fs.writeFile(file.name, array);
+            } catch (err) {
+                if (Squeak.debugFiles) console.log("flushFile error", file.name, err);
+            }
+        }
+    },
+
 },
 "dirs", {
     dirCreate: async function(dirpath, withParents) {

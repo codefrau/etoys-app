@@ -108,15 +108,20 @@ Object.extend(Squeak.Primitives.prototype,
         this.popNandPushIfOK(argCount+1, this.makeStObject(handle.filePos >= handle.file.size));
         return true;
     },
-    XprimitiveFileClose: function(argCount) {
+    primitiveFileClose: async function(argCount) {
         var handle = this.stackNonInteger(0);
         if (!this.success || !handle.file) return false;
-        if (typeof handle.file === "string") {
-             this.fileConsoleFlush(handle.file);
-        } else {
-            this.fileClose(handle.file);
-            this.vm.breakOut();     // return to JS asap so async file handler can run
-            handle.file = null;
+        if (Squeak.debugFiles) console.log("primitiveFileClose", handle.file.name || handle.file);
+        try {
+            if (typeof handle.file === "string") {
+                 this.fileConsoleFlush(handle.file);
+            } else {
+                await this.fileClose(handle.file);
+                handle.file = null;
+            }
+        } catch (e) {
+            if (Squeak.debugFiles) console.warn("Error in primitiveFileClose:", e);
+            return false;
         }
         return this.popNIfOK(argCount);
     },
@@ -152,18 +157,24 @@ Object.extend(Squeak.Primitives.prototype,
         handle.filePos = 0;             // specific to this handle
         return handle;
     },
-    XprimitiveFileOpen: function(argCount) {
+    primitiveFileOpen: async function(argCount) {
         var writeFlag = this.stackBoolean(0),
             fileNameObj = this.stackNonInteger(1);
         if (!this.success) return false;
-        var fileName = this.filenameFromSqueak(fileNameObj.bytesAsString()),
-            file = this.fileOpen(fileName, writeFlag);
-        if (!file) return false;
-        var handle = this.makeFileHandle(file.name, file, writeFlag);
-        this.popNandPushIfOK(argCount+1, handle);
-        return true;
+        try {
+            var fileName = this.filenameFromSqueak(fileNameObj.bytesAsString());
+            if (Squeak.debugFiles) console.log("primitiveFileOpen", fileName, writeFlag);
+            var file = await this.fileOpen(fileName, writeFlag);
+            if (!file) return false;
+            var handle = this.makeFileHandle(file.name, file, writeFlag);
+            this.popNandPushIfOK(argCount+1, handle);
+            return true;
+        } catch (e) {
+            if (Squeak.debugFiles) console.warn("Error in primitiveFileOpen:", e);
+            return false;
+        }
     },
-    XprimitiveFileRead: function(argCount) {
+    primitiveFileRead: function(argCount) {
         var count = this.stackInteger(0),
             startIndex = this.stackInteger(1) - 1, // make zero based
             arrayObj = this.stackNonInteger(2),
@@ -183,17 +194,17 @@ Object.extend(Squeak.Primitives.prototype,
             this.popNandPushIfOK(argCount+1, 0);
             return true;
         }
-        return this.fileContentsDo(handle.file, function(file) {
-            if (!file.contents)
-                return this.popNandPushIfOK(argCount+1, 0);
-            var srcArray = file.contents,
-                dstArray = array;
-            count = Math.min(count, file.size - handle.filePos);
-            for (var i = 0; i < count; i++)
-                dstArray[startIndex + i] = srcArray[handle.filePos++];
-            if (!arrayObj.bytes) count >>= 2;  // words
-            this.popNandPushIfOK(argCount+1, Math.max(0, count));
-        }.bind(this));
+        if (!handle.file.contents)
+            return this.popNandPushIfOK(argCount+1, 0);
+        var srcArray = handle.file.contents,
+            dstArray = array;
+        count = Math.min(count, handle.file.size - handle.filePos);
+        for (var i = 0; i < count; i++)
+            dstArray[startIndex + i] = srcArray[handle.filePos++];
+        if (!arrayObj.bytes) count >>= 2;  // words
+        this.popNandPushIfOK(argCount+1, Math.max(0, count));
+        // if (Squeak.debugFiles) console.log("primitiveFileRead", count, "bytes at", handle.filePos);
+        return true;
     },
     XprimitiveFileRename: function(argCount) {
         var oldNameObj = this.stackNonInteger(1),
@@ -205,7 +216,7 @@ Object.extend(Squeak.Primitives.prototype,
         this.vm.breakOut();     // return to JS asap so async file handler can run
         return this.popNIfOK(argCount);
     },
-    XprimitiveFileSetPosition: function(argCount) {
+    primitiveFileSetPosition: function(argCount) {
         var pos = this.stackPos32BitInt(0),
             handle = this.stackNonInteger(1);
         if (!this.success || !handle.file) return false;
@@ -281,80 +292,69 @@ Object.extend(Squeak.Primitives.prototype,
             this.popNandPushIfOK(argCount+1, count);
         }.bind(this));
     },
-    fileOpen: function(filename, writeFlag) {
-        debugger
+    fileOpen: async function(filename, writeFlag) {
         // if a file is opened for read and write at the same time,
         // they must share the contents. That's why all open files
         // are held in the ref-counted global SqueakFiles
         if (typeof SqueakFiles == 'undefined')
             window.SqueakFiles = {};
-        var path = Squeak.splitFilePath(filename);
-        if (!path.basename) return null;    // malformed filename
-        // fetch or create directory entry
-        var directory = Squeak.dirList(path.dirname, true);
-        if (!directory) return null;
-        var entry = directory[path.basename],
-            contents = null;
+        var entry = null;
+        try {
+            entry = await __TAURI__.fs.stat(filename);
+            if (!entry.isFile) {
+                if (Squeak.debugFiles) console.log("Not a file: " + filename);
+                return null;
+            }
+        } catch (err) {
+            if (Squeak.debugFiles) console.warn("fileOpen stat error", filename, err);
+            entry = null;
+        }
+        var contents = null;
         if (entry) {
             // if it is open already, return it
-            var file = SqueakFiles[path.fullname];
+            var file = SqueakFiles[filename];
             if (file) {
                 ++file.refCount;
                 return file;
             }
+            try {
+                contents = await __TAURI__.fs.readFile(filename);
+            } catch (err) {
+                if (Squeak.debugFiles) console.warn("fileOpen read error", filename, err);
+                return null;
+            }
         } else {
             if (!writeFlag) {
-                if (Squeak.debugFiles) console.log("File not found: " + path.fullname);
+                if (Squeak.debugFiles) console.log("File not found: " + filename);
                 return null;
             }
             contents = new Uint8Array();
-            entry = Squeak.filePut(path.fullname, contents.buffer);
-            if (!entry) {
-                if (Squeak.debugFiles) console.log("Cannot create file: " + path.fullname);
+            try {
+                await __TAURI__.fs.writeFile(filename, contents);
+            } catch (err) {
+                if (Squeak.debugFiles) console.log("Cannot create file: " + filename, err);
                 return null;
             }
         }
         // make the file object
         var file = {
-            name: path.fullname,
-            size: entry[4],         // actual file size, may differ from contents.length
-            contents: contents,     // possibly null, fetched when needed
+            name: filename,
+            size: contents.length,
+            contents: contents,
             modified: false,
             refCount: 1
         };
         SqueakFiles[file.name] = file;
         return file;
     },
-    fileClose: function(file) {
-        debugger
-        Squeak.flushFile(file);
+    fileClose: async function(file) {
+        try {
+            await Squeak.flushFile(file);
+        } catch (e) {
+            if (Squeak.debugFiles) console.warn("Error in fileClose:", e);
+        }
         if (--file.refCount == 0)
             delete SqueakFiles[file.name];
-    },
-    fileContentsDo: function(file, func) {
-        debugger
-        if (file.contents) {
-            func(file);
-        } else {
-            if (file.contents === false) // failed to get contents before
-                return false;
-            this.vm.freeze(function(unfreeze) {
-                var error = (function(msg) {
-                    console.warn("File get failed: " + msg);
-                    file.contents = false;
-                    unfreeze();
-                    func(file);
-                }).bind(this),
-                success = (function(contents) {
-                    if (contents == null) return error(file.name);
-                    file.contents = this.asUint8Array(contents);
-                    unfreeze();
-                    func(file);
-                }).bind(this);
-                Squeak.fileGet(file.name, success, error);
-            }.bind(this));
-        }
-        return true;
     },
     fileConsoleBuffer: {
         log: '',
