@@ -29,19 +29,21 @@ async function run() {
     Squeak.debugFiles = true;
 
     const documentDir = await __TAURI__.path.documentDir();
-    const etoysDir = await __TAURI__.path.join(documentDir, "Etoys");
-    Squeak.untrustedUserDirectory = etoysDir;     // FileDirectory default in Etoys
+    const userDir = await __TAURI__.path.join(documentDir, "Etoys");
+    Squeak.untrustedUserDirectory = userDir;     // FileDirectory default in Etoys
 
     // on macOS this is the .app bundle's Resources directory
     const resourceDir = await __TAURI__.path.resourceDir();
-    const imagePath = await __TAURI__.path.join(resourceDir, "Etoys", "etoys.image");
+    const imageDir = await __TAURI__.path.join(resourceDir, "Etoys");
+    const imagePath = await __TAURI__.path.join(imageDir, "etoys.image");
+    Squeak.vmPath = imageDir;            // for locales etc.
 
     SqueakJS.runSqueak(imagePath, sqCanvas, {
         appName: "Etoys",
         fixedWidth: 1200,
         fixedHeight: 900,
         spinner: sqSpinner,
-        root: etoysDir,
+        root: userDir,
         onStart: function(vm, display, options) {
             // debugger
             // vm.breakOn("Latin1Environment class>>systemConverterClass");
