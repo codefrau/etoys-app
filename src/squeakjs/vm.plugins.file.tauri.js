@@ -23,22 +23,30 @@
 
 Object.extend(Squeak.Primitives.prototype,
 'FilePlugin', {
-    XprimitiveDirectoryCreate: function(argCount) {
+    primitiveDirectoryCreate: async function(argCount) {
         var dirNameObj = this.stackNonInteger(0);
         if (!this.success) return false;
         var dirName = this.filenameFromSqueak(dirNameObj.bytesAsString());
-        this.success = Squeak.dirCreate(dirName);
-        if (!this.success) {
-            var path = Squeak.splitFilePath(dirName);
-            if (Squeak.debugFiles) console.warn("Directory not created: " + path.fullname);
+        if (Squeak.debugFiles) console.log("primitiveDirectoryCreate", dirName);
+        try {
+            await __TAURI__.fs.mkdir(dirName);
+        } catch (e) {
+            if (Squeak.debugFiles) console.warn("Error in primitiveDirectoryCreate:", e);
+            return false;
         }
         return this.popNIfOK(argCount);
     },
-    XprimitiveDirectoryDelete: function(argCount) {
+    primitiveDirectoryDelete: async function(argCount) {
         var dirNameObj = this.stackNonInteger(0);
         if (!this.success) return false;
         var dirName = this.filenameFromSqueak(dirNameObj.bytesAsString());
-        this.success = Squeak.dirDelete(dirName);
+        if (Squeak.debugFiles) console.log("primitiveDirectoryDelete", dirName);
+        try {
+            await __TAURI__.fs.remove(dirName);
+        } catch (e) {
+            if (Squeak.debugFiles) console.warn("Error in primitiveDirectoryDelete:", e);
+            return false;
+        }
         return this.popNIfOK(argCount);
     },
     primitiveDirectoryDelimitor: function(argCount) {
