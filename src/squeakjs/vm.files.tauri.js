@@ -71,7 +71,16 @@ Object.extend(Squeak,
             }
         }
     },
-
+    flushAllFiles: function() {
+        if (typeof SqueakFiles == 'undefined') return;
+        for (var name in SqueakFiles)
+            this.flushFile(SqueakFiles[name]);
+    },
+    closeAllFiles: function() {
+        // close the files held open in memory
+        Squeak.flushAllFiles();
+        delete window.SqueakFiles;
+    },
 },
 "dirs", {
     dirCreate: async function(dirpath, withParents) {

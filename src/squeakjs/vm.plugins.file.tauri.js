@@ -102,7 +102,7 @@ Object.extend(Squeak.Primitives.prototype,
     primitiveDirectorySetMacTypeAndCreator: function(argCount) {
         return this.popNIfOK(argCount);
     },
-    XprimitiveFileAtEnd: function(argCount) {
+    primitiveFileAtEnd: function(argCount) {
         var handle = this.stackNonInteger(0);
         if (!this.success || !handle.file) return false;
         this.popNandPushIfOK(argCount+1, this.makeStObject(handle.filePos >= handle.file.size));
@@ -125,26 +125,37 @@ Object.extend(Squeak.Primitives.prototype,
         }
         return this.popNIfOK(argCount);
     },
-    XprimitiveFileDelete: function(argCount) {
+    primitiveFileDelete: async function(argCount) {
         var fileNameObj = this.stackNonInteger(0);
         if (!this.success) return false;
         var fileName = this.filenameFromSqueak(fileNameObj.bytesAsString());
-        this.success = Squeak.fileDelete(fileName);
+        if (Squeak.debugFiles) console.log("primitiveFileDelete", fileName);
+        try {
+            await __TAURI__.fs.remove(fileName);
+            delete window.SqueakFiles?.[fileName];
+        } catch (err) {
+            if (Squeak.debugFiles) console.log("primitiveFileDelete error", fileName, err);
+            return false;
+        }
         return this.popNIfOK(argCount);
     },
-    XprimitiveFileFlush: function(argCount) {
+    primitiveFileFlush: async function(argCount) {
         var handle = this.stackNonInteger(0);
         if (!this.success || !handle.file) return false;
         if (typeof handle.file === "string") {
              this.fileConsoleFlush(handle.file);
-        } else {
-            Squeak.flushFile(handle.file);
-            this.vm.breakOut();     // return to JS asap so async file handler can run
+             return this.popNIfOK(argCount);
+        }
+        try {
+            if (Squeak.debugFiles) console.log("primitiveFileFlush", handle.file.name);
+            await Squeak.flushFile(handle.file);
+        } catch (e) {
+            if (Squeak.debugFiles) console.warn("Error in primitiveFileFlush:", e);
+            return false;
         }
         return this.popNIfOK(argCount);
     },
-    XprimitiveFileGetPosition: function(argCount) {
-        debugger
+    primitiveFileGetPosition: function(argCount) {
         var handle = this.stackNonInteger(0);
         if (!this.success || !handle.file) return false;
         this.popNandPushIfOK(argCount + 1, this.makeLargeIfNeeded(handle.filePos));
@@ -206,14 +217,20 @@ Object.extend(Squeak.Primitives.prototype,
         // if (Squeak.debugFiles) console.log("primitiveFileRead", count, "bytes at", handle.filePos);
         return true;
     },
-    XprimitiveFileRename: function(argCount) {
+    primitiveFileRename: async function(argCount) {
         var oldNameObj = this.stackNonInteger(1),
             newNameObj = this.stackNonInteger(0);
         if (!this.success) return false;
         var oldName = this.filenameFromSqueak(oldNameObj.bytesAsString()),
             newName = this.filenameFromSqueak(newNameObj.bytesAsString());
-        this.success = Squeak.fileRename(oldName, newName);
-        this.vm.breakOut();     // return to JS asap so async file handler can run
+        if (Squeak.debugFiles) console.log("primitiveFileRename", oldName, "to", newName);
+        try {
+            await __TAURI__.fs.rename(oldName, newName);
+            delete window.SqueakFiles?.[oldName];
+        } catch (err) {
+            if (Squeak.debugFiles) console.log("primitiveFileRename error", oldName, newName, err);
+            return false;
+        }
         return this.popNIfOK(argCount);
     },
     primitiveFileSetPosition: function(argCount) {
@@ -223,7 +240,7 @@ Object.extend(Squeak.Primitives.prototype,
         handle.filePos = pos;
         return this.popNIfOK(argCount);
     },
-    XprimitiveFileSize: function(argCount) {
+    primitiveFileSize: function(argCount) {
         var handle = this.stackNonInteger(0);
         if (!this.success || !handle.file) return false;
         this.popNandPushIfOK(argCount+1, this.makeLargeIfNeeded(handle.file.size));
@@ -238,7 +255,7 @@ Object.extend(Squeak.Primitives.prototype,
         this.popNandPushIfOK(argCount + 1, this.makeStArray(handles));
         return true;
     },
-    XprimitiveFileTruncate: function(argCount) {
+    primitiveFileTruncate: function(argCount) {
         var pos = this.stackPos32BitInt(0),
             handle = this.stackNonInteger(1);
         if (!this.success || !handle.file || !handle.fileWrite) return false;
@@ -252,8 +269,7 @@ Object.extend(Squeak.Primitives.prototype,
     primitiveDisableFileAccess: function(argCount) {
         return this.fakePrimitive("FilePlugin.primitiveDisableFileAccess", 0, argCount);
     },
-    XprimitiveFileWrite: function(argCount) {
-        debugger
+    primitiveFileWrite: function(argCount) {
         var count = this.stackInteger(0),
             startIndex = this.stackInteger(1) - 1, // make zero based
             arrayObj = this.stackNonInteger(2),
@@ -274,23 +290,24 @@ Object.extend(Squeak.Primitives.prototype,
             this.popNandPushIfOK(argCount+1, count);
             return true;
         }
-        return this.fileContentsDo(handle.file, function(file) {
-            var srcArray = array,
-                dstArray = file.contents || [];
-            if (handle.filePos + count > dstArray.length) {
-                var newSize = dstArray.length === 0 ? handle.filePos + count :
-                    Math.max(handle.filePos + count, dstArray.length + 10000);
-                file.contents = new Uint8Array(newSize);
-                file.contents.set(dstArray);
-                dstArray = file.contents;
-            }
-            for (var i = 0; i < count; i++)
-                dstArray[handle.filePos++] = srcArray[startIndex + i];
-            if (handle.filePos > file.size) file.size = handle.filePos;
-            file.modified = true;
-            if (!arrayObj.bytes) count >>= 2;  // words
-            this.popNandPushIfOK(argCount+1, count);
-        }.bind(this));
+        // if (Squeak.debugFiles) console.log("primitiveFileWrite", handle.file.name, count, "bytes at", handle.filePos);
+        if (!handle.file.contents)
+            handle.file.contents = new Uint8Array(0);
+        var srcArray = array,
+            dstArray = handle.file.contents || [];
+        if (handle.filePos + count > dstArray.length) {
+            var newSize = dstArray.length === 0 ? handle.filePos + count :
+                Math.max(handle.filePos + count, dstArray.length + 10000);
+            handle.file.contents = new Uint8Array(newSize);
+            handle.file.contents.set(dstArray);
+            dstArray = handle.file.contents;
+        }
+        for (var i = 0; i < count; i++)
+            dstArray[handle.filePos++] = srcArray[startIndex + i];
+        if (handle.filePos > handle.file.size) handle.file.size = handle.filePos;
+        handle.file.modified = true;
+        if (!arrayObj.bytes) count >>= 2;  // words
+        this.popNandPushIfOK(argCount+1, count);
     },
     fileOpen: async function(filename, writeFlag) {
         // if a file is opened for read and write at the same time,
